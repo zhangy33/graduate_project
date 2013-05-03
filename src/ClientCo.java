@@ -53,6 +53,10 @@ public class ClientCo {
 			// start the communication
 			clients.get(i).chat();
 		}
+		for (int i=0;i<CLIENT_NUM;++i) {
+			// start the communication
+			clients.get(i).chat();
+		}
 		
 	}
 
