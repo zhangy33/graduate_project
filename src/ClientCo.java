@@ -51,10 +51,10 @@ public class ClientCo {
 	private static int portCo = 4700;
 
 	
-	public static void main(String args) throws IOException {
+	public static void main(String[] args) throws IOException {
 
 		//String configFilePathName = "C:\\Documents and Settings\\fn04\\Desktop\\Yuanyuan\\eclipse\\workspace\\yuanyuan\\config.txt"; // input the filePath
-		String configFilePathName = args;
+		String configFilePathName = args[0];
 		readConfigFile(configFilePathName);
 		curProtocolName = protocols.get(0); // TO DO: should be a loop
 		
