@@ -1,5 +1,10 @@
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,7 +55,7 @@ public class SUNDR implements Serializable, NewProtocol  {
 			this.signedVSL = in_signedVSL;
 		}
 	}
-	/*
+	
 	// define the class for VS
 	public class VSstruct implements Serializable{
 
@@ -62,9 +67,9 @@ public class SUNDR implements Serializable, NewProtocol  {
 		int c; // client number
 		int[] pairs; // version pairs
 		
-		 in_c: incoming client #
-		 * in_cv: incoming value
-		 * in_CLIENT_TTNUM: incoming total client number		
+		 // in_c: incoming client #
+		 // in_cv: incoming value
+		 // in_CLIENT_TTNUM: incoming total client number		
 		public VSstruct (int in_c, int in_cv, int in_CLIENT_TTNUM) {
 			try {
 				// cvByte
@@ -89,15 +94,11 @@ public class SUNDR implements Serializable, NewProtocol  {
 		}
 		
 	}
-	*/
+	
 
 	// define the class for packSub
 	public class PackSubClass implements Serializable {
 
-
-		/**
-		 * 
-		 */
 		private static final long serialVersionUID = 3776778181626364672L;
 		private int c; // client #
 		private String o; // operation w or r
@@ -124,12 +125,13 @@ public class SUNDR implements Serializable, NewProtocol  {
 		// value
 		clientDataBase.cv = 0;
 		// VS
-		/*
+		
 		VSstruct localVSstruc = new VSstruct(client_num, 0, CLIENT_TTNUM);
 		byte[] localVSstrucByte = SDK.serialize(localVSstruc);
-		*/
-		String test = "testing";
-		byte[] localVSstrucByte = test.getBytes();
+		
+		// // testing
+		//String test = "testing";
+		//byte[] localVSstrucByte = test.getBytes();
 		clientDataBase.VS = localVSstrucByte;
 		// sig
 		clientDataBase.Sig = localVSstrucByte;// !!!!!!! to be continue
@@ -153,12 +155,13 @@ public class SUNDR implements Serializable, NewProtocol  {
 		int i;
 		for (i = 0; i < CLIENT_TTNUM; ++i) {
 			
-			/*
+			
 			VSstruct localVSstruc = new VSstruct(i, 0, CLIENT_TTNUM);
 			byte[] localVSstrucByte = SDK.serialize(localVSstruc);
-			*/
-			String test = "testing";
-			byte[] localVSstrucByte = test.getBytes();
+			
+			// // testing
+			// String test = "testing";
+			// byte[] localVSstrucByte = test.getBytes();
 
 			serverDataBase.VSL.add(i, localVSstrucByte);
 			serverDataBase.signedVSL.add(i, localVSstrucByte); // !!!!!!! to be continue
@@ -186,39 +189,12 @@ public class SUNDR implements Serializable, NewProtocol  {
 			// de-serialize the request
 			PackSubClass packSubClass = (PackSubClass) SDK.deserialize( Req );
 			
-			/*
-			System.out.println(packSubClass.c);
-			System.out.println(packSubClass.o);
-			System.out.println(packSubClass.cv);
-			
-			
-			
-			// testing!!!
-			try {
-				ServerDataBase test;
-				test = ( ServerDataBase ) SDK.deserialize(serverDataBase);
-				byte[] test_VSLbyte = test.VSL.get(1);
-				VSstruct test_VSL;
-				test_VSL = ( VSstruct ) SDK.deserialize(test_VSLbyte);
-				for (int i = 0;i<20;++i)
-				{
-				System.out.print( test_VSL.pairs[i] + " ");
-				}
-				System.out.println();
-			} catch (ClassNotFoundException e) {
-				e.printStackTrace();
-			}
-			
-			
-			System.out.println(serverDataBase.length);
-			*/
+			// return the server data base
 			System.out.println("Protocal log: Request was processed. Server data base size: " + serverDataBase.length);
 			return serverDataBase;
 			
 			
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
+		} catch (ClassNotFoundException | IOException e) {
 			e.printStackTrace();
 		}
 		
@@ -227,58 +203,122 @@ public class SUNDR implements Serializable, NewProtocol  {
 	}
 
 	@Override
-	public byte[] makeUpdate(int c, int cv, String o, byte[] clientDataBase, byte[] serverDataBase) {
+	public byte[] makeUpdate(int c, int cv, String o, byte[] clientDataBase, byte[] serverDataBase, PrivateKey priKey, List<PublicKey> pubKeys) {
 			
+		
 		try {
+			// de-serialize the client data base
+			ClientDataBase clientDataBase_local;
+			clientDataBase_local = (ClientDataBase) SDK.deserialize(clientDataBase);
+			
+			
 			// de-serialize the server data base
 			ServerDataBase serverDataBase_local;
 			serverDataBase_local = (ServerDataBase) SDK.deserialize(serverDataBase);
 			
-			// verify its own sig
-			byte[] mySig = serverDataBase_local.signedVSL.get(c);
 			
-			// verify others' sig
-			/*
-			// create new VS
-			String type = "VRS";
-			byte[] typeArr = type.getBytes();
-			
-			MessageDigest md = MessageDigest.getInstance("MD5");
-			byte[] cvArr = md.digest( BigInteger.valueOf(cv).toByteArray() );
-			
-			byte[] uArr = BigInteger.valueOf(c).toByteArray();
+			// sig from client == sig from server?
+			if ( serverDataBase_local.VSL.get(c) == clientDataBase_local.VS ) {
+				System.out.println("ERROR in makeUpdate: VS from client != VS from server");
+				return null;
+			}
 			
 			
+			// current client's data base is empty?
+			boolean notEmpty = true;
+			VSstruct clientVSstruc_local = (VSstruct) SDK.deserialize(clientDataBase_local.VS);
+			if ( (clientVSstruc_local.pairs[2*c + 1] == 0) ) {
+				notEmpty = false;
+				if (o=="r") {
+					System.out.println("ERROR in makeUpdate: cannot read from empty database");
+					return null;
+				}
+			}
+
+			
+			// if not empty: verify the sig and order
+			int maxVersionNum = 0;
+			if( notEmpty == true ){
+				
+				Signature sig = Signature.getInstance("SHA1WithRSA");
+				
+				// iterate all the clients
+				for (int i = 0; i<serverDataBase_local.VSL.size() ; ++i) {
+					sig.initVerify(pubKeys.get(i)); // get the key
+					VSstruct curClientVSstruc_local = (VSstruct) SDK.deserialize( serverDataBase_local.VSL.get(i) ); // get the cur VS 
+					
+					// verify all the sig
+					if ( curClientVSstruc_local.pairs[2*i + 1] > 0 ) { // if the current client is not empty
+						sig.update(serverDataBase_local.VSL.get(i)); // the current VS
+						if (sig.verify(serverDataBase_local.signedVSL.get(i)) == false) { // the current signedVS
+							System.out.println("ERROR in makeUpdate: verification failed in client " + i);
+							return null;
+						}
+					}
+					
+					// test ordered or not?
+					if ( curClientVSstruc_local.pairs[2*c + 1] > maxVersionNum ) {
+						maxVersionNum = curClientVSstruc_local.pairs[2*c + 1];
+					}
+				}
+				
+				// ordered or not?
+				if (maxVersionNum > clientVSstruc_local.pairs[2*c + 1]) {
+					System.out.println("ERROR in makeUpdate: VS is not ordered");
+					return null;
+				}
+				
+			}
 			
 			
-			// verfy VS are ordered
-			
-			// generate new sig
-			
-			
-			// 
-			*/
-			
-			byte[] myVS = serverDataBase_local.VSL.get(c);
-			
-			ClientDataBase packUpdateServer = new ClientDataBase(c, cv, myVS, mySig );
-			
-			System.out.println("Protocal log: Update was made.");
+			int newValue; // the value source can be from the server or the input
+			if (o == "r") { // read
+				newValue = serverDataBase_local.cur_server_value; 
+			}
+			else if (o == "w") { // write
+				newValue = cv;
+			}
+			else { // neither r nor w
+				System.out.println("ERROR: input is neither r nor w.");
+				return null;
+			}
+
+			// update the version number
+			VSstruct newVS = (VSstruct) SDK
+					.deserialize(serverDataBase_local.VSL.get(c));
+			++newVS.pairs[2 * c + 1];
+			// update the hash value of cv in the client database
+			byte[] cvByte = new byte[4];
+			for (int i = 0; i < 4; ++i) {
+				cvByte[i] = (byte) (newValue >>> (i * 8));
+			}
+			newVS.cvArr = cvByte;
+			byte[] newVS_byte = SDK.serialize(newVS);
+			// generate the new sig
+			Signature sig2 = Signature.getInstance("SHA1WithRSA");
+			sig2.initSign(priKey);
+			sig2.update(newVS_byte);
+			byte[] newSig_byte = sig2.sign();
+
+			// generate the new client database and return
+			ClientDataBase packUpdateServer = new ClientDataBase(c, newValue, newVS_byte, newSig_byte);
+			System.out.println("Protocal log: Update r was made.");
 			return SDK.serialize(packUpdateServer);
-			
-		} catch (ClassNotFoundException | IOException e) {
+
+		} catch (ClassNotFoundException | IOException | NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
 			e.printStackTrace();
-		} /*catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-		}*/
+		}
 		
-		return null;
 		
+		
+		System.out.println("ERROR: makeUpdate didn't even start");
+		return clientDataBase;
+				
 	}
 
 	
 	@Override
-	public byte[] updateServer(byte[] packUpdateServer, byte[] serverDataBase) {
+	public byte[] updateServer(String o, byte[] packUpdateServer, byte[] serverDataBase, List<PublicKey> pubKeys) {
 		try {
 			// de-serialize the server data base
 			ServerDataBase serverDataBase_local= (ServerDataBase) SDK.deserialize(serverDataBase);
@@ -286,31 +326,36 @@ public class SUNDR implements Serializable, NewProtocol  {
 			// de-serialize the request
 			ClientDataBase packUpdateServer_local = (ClientDataBase) SDK.deserialize(packUpdateServer);
 			
-			// update local server data base value
-			serverDataBase_local.cur_server_value = packUpdateServer_local.cv;
-
-			/*
+			int client_n = packUpdateServer_local.c;
+			
+			// verify the sig
+			Signature sig = Signature.getInstance("SHA1WithRSA");
+			sig.initVerify(pubKeys.get(client_n)); // get the key
+			VSstruct curClientVSstruc_local = (VSstruct) SDK.deserialize( packUpdateServer_local.VS ); // get the cur VS 
+			if ( curClientVSstruc_local.pairs[2*client_n + 1] > 0 ) { // if the current client is not empty
+				sig.update(packUpdateServer_local.VS); // the current VS
+				if (sig.verify(packUpdateServer_local.Sig) == false) { // the current signedVS
+					System.out.println("ERROR in updateServer: verification failed in client " + packUpdateServer_local.c);
+					return null;
+				}
+			}
+			
+			// read or write?
+			if(o == "w") { // update the value if this is a "w" operation
+				serverDataBase_local.cur_server_value = packUpdateServer_local.cv;
+			}
+			
 			// update local server data base's VSL
-			byte[] test_VSLbyte = serverDataBase_local.VSL.get(1);
-			VSstruct test_VSL = ( VSstruct ) SDK.deserialize(test_VSLbyte);
-			test_VSL.pairs[1] ++;
-			test_VSLbyte = SDK.serialize(test_VSL);
-			serverDataBase_local.VSL.set(1, test_VSLbyte);
-			*/
-			serverDataBase_local.VSL.set(packUpdateServer_local.c,
-					packUpdateServer_local.VS);
+			serverDataBase_local.VSL.set(client_n, packUpdateServer_local.VS);
 
 			// update local server data base's sig
-			serverDataBase_local.signedVSL.set(packUpdateServer_local.c,
-					packUpdateServer_local.Sig);
+			serverDataBase_local.signedVSL.set(client_n, packUpdateServer_local.Sig);
 
 			// return the local server data base
 			System.out.println("Protocal log: Server was updated.");
 			return SDK.serialize(serverDataBase_local);
 				
-		} catch (ClassNotFoundException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
+		} catch (ClassNotFoundException | IOException | NoSuchAlgorithmException | SignatureException | InvalidKeyException e) {
 			e.printStackTrace();
 		}
 		

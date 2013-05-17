@@ -16,7 +16,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class Server {
 	
 	// communication field
-	private int port = 8821;
+	private int port = 7822;
     private ServerSocket serverSocket;
     private ExecutorService executorService; // thread pool
 	private Lock lock = new ReentrantLock(); // to prevent deadlock
@@ -30,52 +30,80 @@ public class Server {
 	
 	// start the service
 	public void startService() throws IOException {
-		int i = 0;
+		
+		int connectCount = 0;
 
 		this.serverSocket = new ServerSocket(port);
 		executorService = Executors.newSingleThreadExecutor();
 		System.out.println("Server started up.");
-		
-		// 1st: let the ServerCo update the protocol name
-		ServerCo.getProtocolName();
-
-		// 2nd: initialize the server
-		serverDataBase = ServerCo.initServerDataBase();
 
 		
-		while (true) {
+		// Let ServerCo update the client number, protocol name,and pubKey
+		ServerCo.getClientNumProtocolNameAndPubKey();
 
-			try {
+		for (int l = 0; l < ServerCo.ProtocolsNum; ++l) 
+		{
+			ServerCo.curProtocolName = ServerCo.protocols.get(l);
+			for (int k = ServerCo.minClients; k <= ServerCo.maxClients; k = k + ServerCo.incClients) // client # loop
+			{
+				ServerCo.curClientNum = k;
+				for (int j = 0; j < ServerCo.runsNum; ++j) // run # loop
+				{
+					// initialize the server
+					serverDataBase = ServerCo.initServerDataBase();
 
-				Socket socket = null;
-				// the .accept() will be activated when a client trying to
-				// connect this server
-				socket = this.serverSocket.accept();
-				
-				
-				i++; // connection counter
-				System.out.println(i + " of connections.");
-				
-				// 1. connect the current client to a thread(input socket and i)
-				// 2. input the server's data base
-				// 3. output the new server's data base for updating
-				Future<byte[]> futureServerDataBase = executorService.submit(new Handler(socket, serverDataBase, i));
-				byte[] newServerDataBase = (byte[]) futureServerDataBase.get();
-				
-				serverDataBase = newServerDataBase;
+					// operation # = client # * ( write # + read # )
+					int ops = ServerCo.curClientNum
+							* (ServerCo.writesNum + ServerCo.readsNum);
 
-				if (!socket.isClosed()) {
-					socket.close();
-				}
+					while (ops-- > 0) {
 
-				System.out.println();
-				
+						try {
 
-			} catch (IOException | InterruptedException | ExecutionException e) {
-				e.printStackTrace();
-			}
+							// .accept() will be activated when a client trying
+							// to
+							// connect this server
+							Socket socket = this.serverSocket.accept();
 
-		}
+							connectCount++; // connection counter
+							System.out.println(connectCount
+									+ " of connections.");
+
+							// 1. connect the current client to a thread(input
+							// socket
+							// and i)
+							// 2. input the server's data base
+							// 3. output the new server's data base for updating
+							Future<byte[]> futureServerDataBase = executorService
+									.submit(new Handler(socket, serverDataBase,
+											connectCount));
+							byte[] newServerDataBase = (byte[]) futureServerDataBase
+									.get();
+
+							// update the server data base
+							serverDataBase = newServerDataBase;
+
+							if (!socket.isClosed()) {
+								socket.close();
+							}
+
+							System.out.println();
+
+						} catch (IOException | InterruptedException
+								| ExecutionException e) {
+							e.printStackTrace();
+						}
+
+					} // end of while
+				} // end of run # loop
+			} // end of client # loop
+		} // end of protocol # loop
+
+
+		
+		// close the server
+		executorService.shutdownNow();
+		this.serverSocket.close();
 
 	}
 
@@ -93,11 +121,13 @@ public class Server {
 		// local server data base copy
 		private byte[] serverDataBase_ThreadCopy;
 		// connection count
-		private int i = 0;
+		private int connectCount = 0;
+		
+		public String o;
 		
 		
 		// constructor of the current thread
-		public Handler(Socket socket, byte[] serverDataBase, int in_i) {
+		public Handler(Socket socket, byte[] serverDataBase, int in_connectCount) {
 			
 			// copy client info to local
 			this.socket = socket;
@@ -105,7 +135,7 @@ public class Server {
 			// copy server data base to local
 			serverDataBase_ThreadCopy = serverDataBase;
 			
-			this.i = in_i;
+			this.connectCount = in_connectCount;
 			
 		}
 
@@ -139,6 +169,8 @@ public class Server {
 				
 
 				// ***** reply the request *****
+				this.o = in.readUTF(); // read the current operation
+				
 				// receive the package
 				int sizePackReq = in.readInt(); // receive request package size
 				byte[] packReceived_byte = new byte[sizePackReq];
@@ -181,7 +213,7 @@ public class Server {
 			    socket.shutdownInput();
 			    
 				// update the server data base
-				byte[] newServerDataBase = ServerCo.updateServerDataBase(packUpd_byte, serverDataBase_ThreadCopy);
+				byte[] newServerDataBase = ServerCo.updateServerDataBase(this.o, packUpd_byte, serverDataBase_ThreadCopy);
 				 
 				
 				
@@ -209,7 +241,7 @@ public class Server {
 				Long comSize = new Long(packReceived_byte.length + packReply_byte.length + packUpd_byte.length);
 				
 				
-				fw1.write("Server connection " + i + ":" );
+				fw1.write("Server connection " + connectCount + ":" );
 				fw1.write(System.getProperty("line.separator")); // new line
 				fw1.write("tTT: " + t_TT_obj.toString() + ",   ");
 				fw1.write("t_Socket: " + t_Socket_obj.toString() + ",   ");
@@ -217,7 +249,7 @@ public class Server {
 				fw1.write(System.getProperty("line.separator"));
 				fw1.write(System.getProperty("line.separator"));
 				
-				fw2.write("Server connection " + i + ":" );
+				fw2.write("Server connection " + connectCount + ":" );
 				fw2.write(System.getProperty("line.separator")); // new line
 				fw2.write("tTT: " + t_TT_obj.toString() + ",   ");
 				fw2.write("t_WoSocket: " + t_WoSocket_obj.toString() + ",   ");

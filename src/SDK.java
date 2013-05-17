@@ -9,7 +9,7 @@ import java.io.Serializable;
 public class SDK implements Serializable{
 	
 	private static final long serialVersionUID = 3501302915007689309L;
-	public static int CLIENT_NUM = 3000; //!!!!!!only for testing, client# should not be in SDK
+	// public static int CLIENT_NUM = 150; //!!!!!!only for testing, client# should not be in SDK
 	
 	public SDK () {};
 	

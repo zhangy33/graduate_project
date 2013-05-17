@@ -1,3 +1,7 @@
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.util.List;
+
 /**
  * @author Yuanyuan Zhang
  * @version 1.0
@@ -43,13 +47,13 @@ public interface NewProtocol {
 	 * @throws SignatureException 
 	 * @throws NoSuchAlgorithmException 
 	 */
-	public byte[] makeUpdate(int c, int cv, String o, byte[] clientDataBase, byte[] serverDataBase);
+	public byte[] makeUpdate(int c, int cv, String o, byte[] clientDataBase, byte[] serverDataBase, PrivateKey priKey, List<PublicKey> pubKeys);
 	
 	
 	/**
 	 * server updates the information.
 	 * @param cv	current value
 	 */
-	public byte[] updateServer(byte[] packUpdateServer, byte[] serverDataBase);
+	public byte[] updateServer(String o, byte[] packUpdateServer, byte[] serverDataBase, List<PublicKey> pubKeys);
 
 }

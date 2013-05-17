@@ -3,39 +3,42 @@ import java.io.DataOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.Socket;
+import java.security.PrivateKey;
 
 public class Client {
 
 	// define this client
 	private String host = "localhost";
-	private int port = 8821;
+	private int port = 7822;
 	
 
-	private int c;
-	private int cv;
-	private byte[] clientDataBase;
+	public int c;
+	public int cv;
+	public byte[] clientDataBase;
+	public PrivateKey priv;
+	public String o;
 
 	
 	
 	// constructor
-	public Client(int in_c, int in_cv) {
+	public Client(int in_c, int in_cv, PrivateKey in_priv) {
 		// will use the default host and port
 		
 		c = in_c;
 		cv = in_cv;
+
+		this.priv = in_priv;
 		
+		// init the client data base
+		clientDataBase = ClientCo.initClientDataBase(in_c);
+
 	}
 
-	// constructor
-	public Client(String host, int port) {
-		this.host = host;
-		this.port = port;
-	}
 
 	public void chat() {
 		
 		try {
-			
+		
 			FileWriter  fw1 = new FileWriter ("clientRsltSocket.txt", true);
 			FileWriter  fw2 = new FileWriter ("clientRsltWoSocket.txt", true);
 			long t_TT_temp = 0;
@@ -58,12 +61,16 @@ public class Client {
 
 			
 			// ***** submit the request *****
+			this.o = ClientCo.cur_o;
+			out.writeUTF(this.o); // send the operation type
+			out.flush(); // force any buffered byte to be written out the the stream
+			
 			// get the request package
 			byte[] packSub_byte = ClientCo.getRequestPackage();
 
 			// send the package
 			out.writeInt(packSub_byte.length);
-			out.flush(); // force any buffered byte to be written out the the stream
+			out.flush();
 			out.write(packSub_byte);
 			out.flush();
 			t_Socket += (System.nanoTime() - t_Socket_temp);
@@ -92,9 +99,10 @@ public class Client {
 		    // SHUT DOWN SOCKET INPUT
 		    socket.shutdownInput();
 		     
+		    
 			// make update
-			byte[] packUpd_byte = ClientCo.makeUpdatePackage(c, cv,
-					clientDataBase, packRep_byte);
+			byte[] packUpd_byte = ClientCo.makeUpdatePackage(c, cv, this.o,
+					clientDataBase, packRep_byte, this.priv);
 			// update client
 			clientDataBase = packUpd_byte;
 			// send the updates to server
