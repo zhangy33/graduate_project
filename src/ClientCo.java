@@ -133,6 +133,7 @@ public class ClientCo {
 	}
 	public static ArrayList<testInfoEachRunClientStruct> testInfoEachRunClient;
 	
+<<<<<<< HEAD
 	
 
 	
@@ -143,6 +144,12 @@ public class ClientCo {
 		String configFilePathName = args[0];
 		String outputFileRoot = args[1];
 		
+=======
+	public static void main(String[] args) throws IOException {
+
+		//String configFilePathName = "C:\\Documents and Settings\\fn04\\Desktop\\Yuanyuan\\eclipse\\workspace\\yuanyuan\\config.txt"; // input the filePath
+		String configFilePathName = args[0];
+>>>>>>> 5d2fe4531ea45c829f7512bada75e35c53b6dff3
 		readConfigFile(configFilePathName);
 		
 		try {
