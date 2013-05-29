@@ -7,6 +7,7 @@ import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.List;
 
+
 public class ServerCo {
 	
 	// the current protocol name
@@ -36,6 +37,7 @@ public class ServerCo {
 	
 	public static List<PublicKey> pubKey;
 	
+
 	public static void main(String[] args) {
 
 		// conduct the Server

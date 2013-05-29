@@ -8,6 +8,23 @@ import java.io.Serializable;
 
 public class SDK implements Serializable{
 	
+	public class testInfoEachRunServerStruct implements Serializable{
+		/**
+		 * 
+		 */
+		private static final long serialVersionUID = 5055042726635718504L;
+		public long server_total_writeTime_withSocket;
+		public long server_total_writeTime_withoutSocket;
+		public long server_active_writeTime_withSocket;
+		public long server_active_writeTime_withoutSocket;
+		public long server_total_readTime_withSocket;
+		public long server_total_readTime_withoutSocket;
+		public long server_active_readTime_withSocket;
+		public long server_active_readTime_withoutSocket;
+		
+		public testInfoEachRunServerStruct(){}
+	}
+	
 	private static final long serialVersionUID = 3501302915007689309L;
 	// public static int CLIENT_NUM = 150; //!!!!!!only for testing, client# should not be in SDK
 	

@@ -1,6 +1,5 @@
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -13,8 +12,9 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 
-public class Server {
+public class Server{
 	
+
 	// communication field
 	private int port = 7822;
     private ServerSocket serverSocket;
@@ -23,6 +23,16 @@ public class Server {
 	
 	// data base field
 	private byte[] serverDataBase;
+	
+	public static long server_total_writeTime_withSocket;
+	public static long server_total_writeTime_withoutSocket;
+	public static long server_active_writeTime_withSocket;
+	public static long server_active_writeTime_withoutSocket;
+	public static long server_total_readTime_withSocket;
+	public static long server_total_readTime_withoutSocket;
+	public static long server_active_readTime_withSocket;
+	public static long server_active_readTime_withoutSocket;
+	
 
 	// constructor
 	public Server() {}
@@ -75,16 +85,45 @@ public class Server {
 							// 2. input the server's data base
 							// 3. output the new server's data base for updating
 							Future<byte[]> futureServerDataBase = executorService
-									.submit(new Handler(socket, serverDataBase,
-											connectCount));
+									.submit(new Handler(socket, serverDataBase));
 							byte[] newServerDataBase = (byte[]) futureServerDataBase
 									.get();
 
 							// update the server data base
 							serverDataBase = newServerDataBase;
-
+							
 							if (!socket.isClosed()) {
 								socket.close();
+							}
+							
+							
+							// send out the test info
+							Socket socket_testInfo = this.serverSocket.accept();
+							DataOutputStream out_testInfo = new DataOutputStream(socket_testInfo.getOutputStream());
+							out_testInfo.flush();
+							
+							out_testInfo.writeLong(server_total_writeTime_withSocket);
+							out_testInfo.flush();
+							out_testInfo.writeLong(server_total_writeTime_withoutSocket);
+							out_testInfo.flush();
+							out_testInfo.writeLong(server_active_writeTime_withSocket);
+							out_testInfo.flush();
+							out_testInfo.writeLong(server_active_writeTime_withoutSocket);
+							out_testInfo.flush();
+							out_testInfo.writeLong(server_total_readTime_withSocket);
+							out_testInfo.flush();
+							out_testInfo.writeLong(server_total_readTime_withoutSocket);
+							out_testInfo.flush();
+							out_testInfo.writeLong(server_active_readTime_withSocket);
+							out_testInfo.flush();
+							out_testInfo.writeLong(server_active_readTime_withoutSocket);
+							out_testInfo.flush();
+							
+							socket_testInfo.shutdownOutput();
+							out_testInfo.close();
+							
+							if (!socket_testInfo.isClosed()) {
+								socket_testInfo.close();
 							}
 
 							System.out.println();
@@ -120,22 +159,18 @@ public class Server {
 		private Socket socket; // socket
 		// local server data base copy
 		private byte[] serverDataBase_ThreadCopy;
-		// connection count
-		private int connectCount = 0;
 		
 		public String o;
 		
 		
 		// constructor of the current thread
-		public Handler(Socket socket, byte[] serverDataBase, int in_connectCount) {
+		public Handler(Socket socket, byte[] serverDataBase) {
 			
 			// copy client info to local
 			this.socket = socket;
 			
 			// copy server data base to local
 			serverDataBase_ThreadCopy = serverDataBase;
-			
-			this.connectCount = in_connectCount;
 			
 		}
 
@@ -145,19 +180,10 @@ public class Server {
 			lock.lock();
 			try {
 				
-				FileWriter  fw1 = new FileWriter ("serverRsltSocket.txt", true);
-				FileWriter  fw2 = new FileWriter ("serverRsltWoSocket.txt", true);
-				long t_TT_temp = 0;
-				long t_TT = 0;
-				long t_Socket_temp = 0;
-				long t_Socket = 0;
-				long t_WoSocket_temp = 0;
-				long t_WoSocket = 0;
 				
-				
-				t_TT_temp = System.nanoTime();
-				t_Socket_temp = System.nanoTime();
-				t_WoSocket_temp = System.nanoTime();
+				// time info		
+				server_total_readTime_withSocket = System.nanoTime();
+				server_active_readTime_withSocket = System.nanoTime();
 				// ***** initialize the in the out sockets *****
 				// get input and output streams
 				DataOutputStream out = new DataOutputStream(
@@ -167,7 +193,8 @@ public class Server {
 						socket.getInputStream());
 				
 				
-
+				server_total_readTime_withoutSocket = System.nanoTime();
+				server_active_readTime_withoutSocket = System.nanoTime();
 				// ***** reply the request *****
 				this.o = in.readUTF(); // read the current operation
 				
@@ -180,16 +207,17 @@ public class Server {
 				byte[] packReply_byte = ServerCo.replyRequest(packReceived_byte, serverDataBase_ThreadCopy);
 				out.write(packReply_byte);
 				out.flush(); // force any buffered byte to be written out the the stream
+				server_active_readTime_withSocket = server_active_readTime_withSocket - System.nanoTime();
+				server_active_readTime_withoutSocket = server_active_readTime_withoutSocket - System.nanoTime();
 				//System.out.println("1. Server sent reply: " + packReply_byte.length + " byte");
 				
 				// SHUT DOWN SOCKET OUTPUT !!!KEY WORD TO AVOID DEAD LOCK!!!
 				// otherwise, the client will keep waiting for the reply message
 				socket.shutdownOutput();
-				t_Socket += (System.nanoTime() - t_Socket_temp);
-				t_WoSocket += (System.nanoTime() - t_WoSocket_temp);
 				
 				
-				
+				server_total_writeTime_withSocket = System.nanoTime();
+				server_total_writeTime_withoutSocket = System.nanoTime();
 				// ***** receive the updating package and update server *****
 				// receive the update package
 				byte[] packUpd_byte = new byte[0];
@@ -198,8 +226,10 @@ public class Server {
 				int flag = 1;
 			    while((k = in.read(buff, 0, buff.length)) > -1) {
 			    	if (flag == 1) {
-			    		t_Socket_temp = System.nanoTime();
-			    		t_WoSocket_temp = System.nanoTime();
+			    		server_total_readTime_withSocket = server_total_readTime_withSocket - System.nanoTime();
+			    		server_total_readTime_withoutSocket = server_total_readTime_withoutSocket - System.nanoTime();
+			    		server_active_writeTime_withSocket = System.nanoTime();
+			    		server_active_writeTime_withoutSocket = System.nanoTime();
 			    		flag = 0;
 			    	}
 			        byte[] tbuff = new byte[packUpd_byte.length + k]; // temp buffer size = bytes already read + bytes last read
@@ -219,47 +249,19 @@ public class Server {
 				
 				// ***** done *****
 				System.out.println();
-				
-				t_WoSocket += (System.nanoTime() - t_WoSocket_temp);
+
 				
 				if (!socket.isClosed()) {
+					server_total_writeTime_withoutSocket = System.nanoTime() - server_total_writeTime_withoutSocket;
+					server_active_writeTime_withoutSocket = System.nanoTime() - server_active_writeTime_withoutSocket;
 					in.close();
 					out.close();
 					socket.close();
 				}
+				server_total_writeTime_withSocket = System.nanoTime() - server_total_writeTime_withSocket;
+				server_active_writeTime_withSocket = System.nanoTime() - server_active_writeTime_withSocket;
 				
-				t_TT += (System.nanoTime() - t_TT_temp);
-				t_Socket += (System.nanoTime() - t_Socket_temp);
-				
-				
-				
-				
-				// ***** receive info *****
-				Long t_TT_obj = new Long(t_TT);
-				Long t_Socket_obj = new Long(t_Socket);
-				Long t_WoSocket_obj = new Long(t_WoSocket);
-				Long comSize = new Long(packReceived_byte.length + packReply_byte.length + packUpd_byte.length);
-				
-				
-				fw1.write("Server connection " + connectCount + ":" );
-				fw1.write(System.getProperty("line.separator")); // new line
-				fw1.write("tTT: " + t_TT_obj.toString() + ",   ");
-				fw1.write("t_Socket: " + t_Socket_obj.toString() + ",   ");
-				fw1.write("comSize: " + comSize.toString());
-				fw1.write(System.getProperty("line.separator"));
-				fw1.write(System.getProperty("line.separator"));
-				
-				fw2.write("Server connection " + connectCount + ":" );
-				fw2.write(System.getProperty("line.separator")); // new line
-				fw2.write("tTT: " + t_TT_obj.toString() + ",   ");
-				fw2.write("t_WoSocket: " + t_WoSocket_obj.toString() + ",   ");
-				fw2.write("comSize: " + comSize.toString());
-				fw2.write(System.getProperty("line.separator"));
-				fw2.write(System.getProperty("line.separator"));
-				
-				fw1.close();
-				fw2.close();
-				
+		
 				
 				return newServerDataBase;
 

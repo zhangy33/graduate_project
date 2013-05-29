@@ -135,6 +135,7 @@ public class SUNDR implements Serializable, NewProtocol  {
 		clientDataBase.VS = localVSstrucByte;
 		// sig
 		clientDataBase.Sig = localVSstrucByte;// !!!!!!! to be continue
+		
 												 
 		return SDK.serialize(clientDataBase);
 		
@@ -152,8 +153,7 @@ public class SUNDR implements Serializable, NewProtocol  {
 		
 		
 		// the initial values are all zeros
-		int i;
-		for (i = 0; i < CLIENT_TTNUM; ++i) {
+		for (int i = 0; i < CLIENT_TTNUM; ++i) {
 			
 			
 			VSstruct localVSstruc = new VSstruct(i, 0, CLIENT_TTNUM);
@@ -166,6 +166,7 @@ public class SUNDR implements Serializable, NewProtocol  {
 			serverDataBase.VSL.add(i, localVSstrucByte);
 			serverDataBase.signedVSL.add(i, localVSstrucByte); // !!!!!!! to be continue
 		}
+				
 	
 		return SDK.serialize(serverDataBase);
 		
@@ -202,6 +203,7 @@ public class SUNDR implements Serializable, NewProtocol  {
 			
 	}
 
+	@SuppressWarnings("resource")
 	@Override
 	public byte[] makeUpdate(int c, int cv, String o, byte[] clientDataBase, byte[] serverDataBase, PrivateKey priKey, List<PublicKey> pubKeys) {
 			
@@ -217,8 +219,19 @@ public class SUNDR implements Serializable, NewProtocol  {
 			serverDataBase_local = (ServerDataBase) SDK.deserialize(serverDataBase);
 			
 			
-			// sig from client == sig from server?
-			if ( serverDataBase_local.VSL.get(c) == clientDataBase_local.VS ) {
+			// VS from client == VS from server?
+			
+			VSstruct clientVSstruc_local = (VSstruct) SDK.deserialize(clientDataBase_local.VS);
+			VSstruct serverVSstruc_local_curClient = (VSstruct) SDK.deserialize(serverDataBase_local.VSL.get(c));
+			int badPairs =0;
+			for(int i=0;i<20;++i)
+			{
+				if(clientVSstruc_local.pairs[i] != serverVSstruc_local_curClient.pairs[i])
+					badPairs = 1;
+			}
+			if ( clientVSstruc_local.c != serverVSstruc_local_curClient.c ||
+					badPairs == 1 ||
+					!clientVSstruc_local.type.equals(serverVSstruc_local_curClient.type)) {
 				System.out.println("ERROR in makeUpdate: VS from client != VS from server");
 				return null;
 			}
@@ -226,7 +239,6 @@ public class SUNDR implements Serializable, NewProtocol  {
 			
 			// current client's data base is empty?
 			boolean notEmpty = true;
-			VSstruct clientVSstruc_local = (VSstruct) SDK.deserialize(clientDataBase_local.VS);
 			if ( (clientVSstruc_local.pairs[2*c + 1] == 0) ) {
 				notEmpty = false;
 				if (o=="r") {
@@ -251,7 +263,6 @@ public class SUNDR implements Serializable, NewProtocol  {
 					if ( curClientVSstruc_local.pairs[2*i + 1] > 0 ) { // if the current client is not empty
 						sig.update(serverDataBase_local.VSL.get(i)); // the current VS
 						if (sig.verify(serverDataBase_local.signedVSL.get(i)) == false) { // the current signedVS
-							System.out.println("ERROR in makeUpdate: verification failed in client " + i);
 							return null;
 						}
 					}
@@ -305,14 +316,18 @@ public class SUNDR implements Serializable, NewProtocol  {
 			System.out.println("Protocal log: Update r was made.");
 			return SDK.serialize(packUpdateServer);
 
-		} catch (ClassNotFoundException | IOException | NoSuchAlgorithmException | InvalidKeyException | SignatureException e) {
+		} catch (ClassNotFoundException | IOException | NoSuchAlgorithmException e) {
 			e.printStackTrace();
+			return null;
+		} catch (InvalidKeyException e) {
+			System.out.println("ERROR in makeUpdate: incalid key" );
+			e.printStackTrace();
+			return null;
+		} catch (SignatureException e) {
+			System.out.println("ERROR in makeUpdate: sig verification failed" );
+			e.printStackTrace();
+			return null;
 		}
-		
-		
-		
-		System.out.println("ERROR: makeUpdate didn't even start");
-		return clientDataBase;
 				
 	}
 
